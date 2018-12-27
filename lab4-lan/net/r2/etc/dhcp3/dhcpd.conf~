@@ -1,0 +1,9 @@
+subnet 172.16.0.0 netmask 255.255.0.0 {}
+
+subnet C.D.0.0 netmask 255.255.0.0
+{
+  range C.D.0.2 C.D.0.200;
+  option routers C.D.0.1;
+  option domain-name-servers C.D.0.1;
+}
+

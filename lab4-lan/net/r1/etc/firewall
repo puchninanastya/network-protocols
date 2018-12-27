@@ -1,0 +1,44 @@
+#!/bin/sh
+
+LAN=eth0
+INET=eth1
+VPN=tun0
+
+# Удаление всех правил в таблице "filter" (по-умолчанию).
+iptables -F
+# Удаление правил в таблице "nat" (её надо указать явно).
+iptables -F -t nat
+# По-умолчанию все маршрутизируемые пакеты выбрасываются.
+iptables --policy FORWARD DROP
+# ICMP разрешим
+iptables -A FORWARD -p icmp -j ACCEPT
+# Разрешаем любую маршрутизацию для интерфейса VPN
+iptables -A FORWARD  -i $VPN -j ACCEPT
+iptables -A FORWARD  -o $VPN -j ACCEPT
+# Включение SNAT для маршрутизируемых пакетов, выходящих
+# через eth1. Это правило выполняется после самой маршрутизации
+# (POSTROUTING) и помещается в таблицу правил "nat".
+iptables -t nat -A POSTROUTING -o $INET -j MASQUERADE
+# Разрешение пакетов-ответов (они отслеживаются как
+# -- state ESTABLISHED)
+iptables -A FORWARD -m state --state ESTABLISHED -i $INET -j ACCEPT
+
+# My rules:
+
+# Access for local
+iptables -A FORWARD -s 10.10.0.0/16 -p tcp -j ACCEPT
+
+# Drop VPN
+iptables -A FORWARD -s 10.10.0.0/16 -p tcp --dport 1723 -j DROP
+iptables -A FORWARD -s 10.10.0.0/16 -p 47 -j DROP
+
+# DNAT for server
+iptables -t nat -A PREROUTING -p tcp --dport 80  -i $INET -j DNAT --to 10.10.4.10:80
+iptables -A FORWARD -p tcp --dport 80 -d 10.10.4.10 -i $INET -j ACCEPT
+
+iptables -t nat -A PREROUTING -p udp --dport 80  -i $INET -j DNAT --to 10.10.4.10:80
+iptables -A FORWARD -p udp --dport 80 -d 10.10.4.10 -i $INET -j ACCEPT
+
+iptables -t nat -A PREROUTING -p tcp --dport 25  -i $INET -j DNAT --to 10.10.4.10:25
+iptables -A FORWARD -d 10.10.4.10 -p tcp --dport 25 -i $INET -j ACCEPT
+
